@@ -59,14 +59,18 @@ install_system_dependencies() {
     check_sudo
 
     case "$DISTRO" in
-        "ubuntu"|"debian")
+        "ubuntu"|"debian"|"kali")
             print_msg "Instalando dependencias para Debian/Ubuntu..." "info"
             # Eliminar archivos de bloqueo de dpkg y apt e instalar dependencias
             sudo rm -f /var/lib/dpkg/lock /var/cache/apt/archives/lock /var/lib/apt/lists/lock
             sudo dpkg --add-architecture i386
             sudo apt update
-            # sudo apt install -y --no-install-recommends \
-                # python3.9 python3-pip # wine git wget curl
+            sudo apt install -y --no-install-recommends \
+                python3.9 python3-pip git wget curl # wine
+            sudo apt install winetricks
+	    winetricks vcrun2015
+	    winetricks vcrun2013
+
             ;;
         "arch"|"manjaro")
             print_msg "Instalando dependencias para Arch/Manjaro..." "info"
@@ -149,12 +153,19 @@ find_python_in_wine() {
 
 # Instalar Python en Wine
 install_python_for_wine() {
+    
+    # Instalar Visual Studio Build Tools
+    print_msg "Descargando Visual Studio Build Tools..." "info"
+    wget -O vs_buildtools.exe https://aka.ms/vs/17/release/vs_buildtools.exe || return 1
+
     local installer="python-${PYTHON_WINE_VERSION}.exe"
     print_msg "Descargando Python ${PYTHON_WINE_VERSION}..." "info"
     wget "https://www.python.org/ftp/python/${PYTHON_WINE_VERSION}/${installer}" -O "$installer" || return 1
+    
 
     print_msg "Instalando Python en Wine..." "info"
     wine "$installer" /quiet InstallAllUsers=0 PrependPath=1 || return 1
+    wine vs_buildtools.exe --quiet --wait --norestart --nocache --installPath C:\\BuildTools --add Microsoft.VisualStudio.Workload.VCTools || return 1
     rm -f "$installer"
 }
 
@@ -177,7 +188,7 @@ main() {
 
     # Instalar dependencias en Wine
     print_msg "Instalando dependencias en Wine..." "info"
-    install_dependencies_in_wine pyinstaller==5.6.0 pillow==9.5.0 pyscreeze==0.1.28 pyautogui==0.9.52 psutil==5.9.0 keyboard==0.13.5 pywin32==305 pycryptodome==3.18.0 discord_webhook==0.14.0 discord.py==2.0.0 opencv-python==4.7.0.72 sounddevice==0.4.4 scipy==1.10.0 pyTelegramBotAPI==4.7.0 PyGithub==1.56
+    install_dependencies_in_wine pip==25.0.1 pyinstaller==5.6.0 pillow==9.5.0 pyscreeze==0.1.28 pyautogui==0.9.52 psutil==5.9.0 keyboard==0.13.5 pywin32==305 pycryptodome==3.18.0 discord_webhook==0.14.0 discord.py==2.0.0 opencv-python==4.7.0.72 sounddevice==0.4.4 scipy==1.10.0 pyTelegramBotAPI==4.7.0 PyGithub==1.56
 
     # Buscar PyInstaller en Wine dinamicamente
     find_pyinstaller_in_wine() {
@@ -220,7 +231,7 @@ main() {
             pip install -r requirements.txt || { print_msg "Error al instalar las dependencias." "error"; exit 1; }
             break
         elif [[ "$confirmation_env" == "n" ]]; then
-            pip install -r requirements.txt || { print_msg "Error al instalar las dependencias." "error"; exit 1; }
+            pip install --break-system-packages -r requirements.txt || { print_msg "Error al instalar las dependencias." "error"; exit 1; }
             break
         else
             print_msg "Entrada invalida. Vuelve a intentarlo." "query"
