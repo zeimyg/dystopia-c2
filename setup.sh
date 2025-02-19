@@ -48,7 +48,7 @@ check_essentials() {
     local essentials=("wget" "sudo" "dpkg" "apt")
     for cmd in "${essentials[@]}"; do
         if ! command -v "$cmd" &>/dev/null; then
-            print_msg "Comando crítico no encontrado: $cmd" "error"
+            print_msg "Comando critico no encontrado: $cmd" "error"
             exit 1
         fi
     done
@@ -173,6 +173,17 @@ main() {
     fi
     
     install_wine_deps || exit 1
+
+    PYINSTALLER_PATH=$(find_pyinstaller_in_wine)
+
+    # Verificar si se encontro PyInstaller
+    if [[ -z "$PYINSTALLER_PATH" ]]; then
+        print_msg "PyInstaller no encontrado en Wine." "error"
+        exit 1
+    fi
+
+    # Exportar la variable de entorno
+    export PYINSTALLER_PATH
     
     # Configurar entorno virtual
     print_msg "¿Crear entorno virtual? (s/n)" "query"
@@ -182,7 +193,7 @@ main() {
     # Ejecutar builder
     print_msg "¿Ejecutar builder.py? (s/n)" "query"
     read -r -n 1 -p " " response
-    [[ "$response" =~ [sS] ]] && python3 builder.py
+    [[ "$response" =~ [sS] ]] && python3 builder.py "$find_pyinstaller_in_wine"
     
     print_msg "Configuracion completada exitosamente" "success"
 }
