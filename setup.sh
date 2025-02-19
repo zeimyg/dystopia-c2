@@ -86,7 +86,7 @@ install_system_deps() {
     print_msg "Instalando dependencias del sistema..." "info"
     
     local packages=(
-        python3.9 python3-pip git wget curl 
+        python3 python3-pip git wget curl 
         winetricks winehq-stable
     )
     
